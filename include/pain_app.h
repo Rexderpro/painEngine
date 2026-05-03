@@ -6,6 +6,7 @@
 #include "pain_model.h"
 #include <memory>
 #include <vector>
+#include "pain_uniform.h"
 
 namespace Pain {
   class TestApp {
@@ -35,5 +36,7 @@ namespace Pain {
       VkPipelineLayout pipelineLayout;
       std::vector<VkCommandBuffer> commandBuffers;
       std::unique_ptr<PainModel> painModel;
+      VkDescriptorSetLayout        descriptorSetLayout = VK_NULL_HANDLE; // promoted from local
+      std::unique_ptr<PainUniform> painUniform;
   };
 }

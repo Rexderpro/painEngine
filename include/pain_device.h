@@ -123,7 +123,10 @@ namespace Pain
 
     // Important Vulkan Context members
     const char* m_Layers[1] = {"VK_LAYER_KHRONOS_validation"};
-    std::vector<std::string> m_DeviceExtensions = {"VK_KHR_swapchain"};
+    std::vector<std::string> m_DeviceExtensions = {
+      VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+      "VK_KHR_portability_subset"
+  };
     VkInstance m_Instance{};
     VkPhysicalDevice m_PhysicalDevice{}; // The device which vulkan is going to use.
     VkDevice m_Device{};
