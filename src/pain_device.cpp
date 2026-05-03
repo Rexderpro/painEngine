@@ -105,10 +105,12 @@ void PainDevice::createInstance() {
 
   std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionsCount);
   extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+  extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
 
   if (glfwExtensionsCount) {
     instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
+    instanceCreateInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
   }
   
   uint32_t propertyCount = 0;
@@ -213,12 +215,16 @@ void PainDevice::pickPhysicalDevice() {
   }
 }
 
-bool PainDevice::isDeviceGud(VkPhysicalDevice device) {
-  VkResult result;
+  bool PainDevice::isDeviceGud(VkPhysicalDevice device) {
   VkPhysicalDeviceProperties deviceProps{};
   vkGetPhysicalDeviceProperties(device, &deviceProps);
-  if (deviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && isDeviceSupportingDesiredExtensions(device)) {
-    return true; // device is very gud
+
+  // Allow Integrated GPUs (Apple Silicon is integrated)
+  bool isCorrectType = (deviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ||
+                        deviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU);
+
+  if (isCorrectType && isDeviceSupportingDesiredExtensions(device)) {
+    return true;
   }
   return false;
 }

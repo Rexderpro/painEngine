@@ -2,17 +2,22 @@
 #include "pain_debug.h"
 #include "pain_input.h"
 #include <GLFW/glfw3.h>
+
 #include <array>
 
 namespace Pain {
 
-TestApp::TestApp()
-{
-  loadModels();
-  createPipelineLayout();
-  createPipeline();
-  createCommandBuffers();
-}
+  TestApp::TestApp()
+  {
+    vkDestroyDescriptorSetLayout(painDevice.device(), descriptorSetLayout, nullptr);
+    vkDestroyPipelineLayout(painDevice.device(), pipelineLayout, nullptr);
+    loadModels();
+    createPipelineLayout();
+    // descriptorSetLayout is now valid — pass it to PainUniform
+    painUniform = std::make_unique<PainUniform>(painDevice, descriptorSetLayout);
+    createPipeline();
+    createCommandBuffers();
+  }
 
   void TestApp::run() {
   while (!painWindow.shouldClose()) {
@@ -33,21 +38,34 @@ void TestApp::loadModels() {
   };
   painModel = std::make_unique<PainModel>(painDevice, vertices);
 }
+  void TestApp::createPipelineLayout() {
+  VkDescriptorSetLayoutBinding cameraLayoutBinding{};
+  cameraLayoutBinding.binding         = 1;
+  cameraLayoutBinding.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  cameraLayoutBinding.descriptorCount = 1;
+  cameraLayoutBinding.stageFlags      = VK_SHADER_STAGE_VERTEX_BIT;
+  cameraLayoutBinding.pImmutableSamplers = nullptr;
 
-  void TestApp::createPipelineLayout()
-{
-  VkResult result;
-  VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = 0;
-  pipelineLayoutInfo.pSetLayouts = nullptr;
+  VkDescriptorSetLayoutCreateInfo layoutInfo{};
+  layoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  layoutInfo.bindingCount = 1;
+  layoutInfo.pBindings    = &cameraLayoutBinding;
+
+  // ← now writes into the member, not a local
+  if (vkCreateDescriptorSetLayout(painDevice.device(), &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create descriptor set layout!");
+  }
+
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+  pipelineLayoutInfo.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutInfo.setLayoutCount         = 1;
+  pipelineLayoutInfo.pSetLayouts            = &descriptorSetLayout;
   pipelineLayoutInfo.pushConstantRangeCount = 0;
-  pipelineLayoutInfo.pPushConstantRanges = nullptr;
+  pipelineLayoutInfo.pPushConstantRanges    = nullptr;
 
-  result = vkCreatePipelineLayout(painDevice.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout);
+  VkResult result = vkCreatePipelineLayout(painDevice.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout);
   ensure(result, "failed to create pipeline layout");
 }
-
 void TestApp::createPipeline()
 {
   auto pipelineConf = PainPipeline::defaultPipelineConfigInfo(painSwapchain.width(), painSwapchain.height());
@@ -94,6 +112,17 @@ void TestApp::createCommandBuffers()
     renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    // Inside the per-image loop, right before painModel->bind():
+    vkCmdBindDescriptorSets(
+      commandBuffers[i],
+      VK_PIPELINE_BIND_POINT_GRAPHICS,
+      pipelineLayout,
+      0,                                      // firstSet — set 0 in the layout
+      1,                                      // descriptorSetCount
+      &painUniform->descriptorSet(),          // ← your set
+      0, nullptr                              // no dynamic offsets
+    );
 
     painPipeline->bind(commandBuffers[i]);
     painModel->bind(commandBuffers[i]);
